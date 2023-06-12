@@ -68,6 +68,16 @@ function accuracy = leave_one_out_cross_validation(data, current_set, feature_to
     list_features = (2:size(data, 2));
     not_features = setxor(features, list_features);
     data(:, not_features) = 0;
+
+    % Set a threshold to determine if sampling is required
+    threshold = 2048;
+    if size(data, 1) > threshold
+        % Set the amount of data to sample and adjust the data
+        sample_size = 0.2;
+        total_samples = floor(size(data, 1) * sample_size);
+        indices = randperm(size(data, 1), total_samples);
+        data = data(indices, :);
+    end
    
     number_correctly_classified = 0;
 
