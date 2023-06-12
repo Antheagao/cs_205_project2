@@ -18,7 +18,7 @@ function project2
                         "CS170_XXXlarge_Data__6.txt"];
         file_name = dataset_list(dataset_choice);
     elseif dataset_choice == 4
-        file_name = 'student-mat.csv';
+        file_name = student-mat.cs
     else
         prompt = "Type in the name of the file to test: ";
         file_name = input(prompt, 's');
