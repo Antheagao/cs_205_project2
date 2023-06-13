@@ -1,5 +1,6 @@
 function project2
     % Display a welcome message
+    % rng(55);
     disp(['Welcome to the Feature Selection Algorithm.' newline])
 
     % Display dataset choices and get user input
@@ -11,7 +12,7 @@ function project2
           '5) Enter your own Dataset']);
     dataset_choice = input('');
 
-    % Load the datset based on user choice
+    % Select the datset name based on user choice
     if dataset_choice >= 1 && dataset_choice <= 3
         dataset_list = ["CS170_small_Data__1.txt", ...
                         "CS170_large_Data__16.txt", ...
@@ -30,8 +31,55 @@ function project2
           9 '2) Backward Elimination '])
     algorithm_choice = input('');
     
+    % Load the dataset and clean real-world dataset if necessary
+    if dataset_choice ~= 4
+        data = load(file_name);
+    else
+        % Perform the necessary data cleaning
+        data = readtable(file_name, 'Delimiter', ';');
+        grades = data.G3;
+        new_grades = zeros(size(grades));
+
+        % Set the grade thresholds
+        low_grades = 10;
+        middle_grades = 15;
+
+        % Convert the final grades to a class label with 3 classes
+        for i = 1 : length(grades)
+            if grades(i) < low_grades
+                new_grades(i) = 1;
+            elseif grades(i) < middle_grades
+                new_grades(i) = 2;
+            else
+                new_grades(i) = 3;
+            end
+        end
+
+        % Replace the final grades with the class labels
+        data.G3 = new_grades;
+
+        % Remove the categorical data from the dataset
+        data = removevars(data, {'school', 'sex', 'address', 'famsize', ...
+                                 'Pstatus', 'Mjob', 'Fjob', 'reason', ...
+                                 'guardian', 'schoolsup', 'famsup', 'paid', ...
+                                 'activities', 'nursery', 'higher', ...
+                                 'internet', 'romantic'});
+        
+        % Normalize the data to be between 0 and 1
+        for i = 1 : width(data) - 1
+            data{:, i} = (data{:, i} - min(data{:, i})) / ...
+                         (max(data{:, i}) - min(data{:, i}));
+        end
+
+        % Switch the final grade class label to the first column
+        data = [data(:, 'G3') data(:, setdiff(data.Properties.VariableNames, 'G3'))];
+
+        % write the cleaned data to a new file
+        writetable(data, 'cleaned-student-mat.csv')
+        data = table2array(data);
+    end
+
     % Display the amount of features and instances
-    data = load(file_name);
     num_features = num2str(size(data, 2) - 1);
     num_instances = size(data, 1);
     disp(['This dataset has ', num2str(num_features), ' features (not' ...
@@ -43,16 +91,16 @@ function project2
         % Display accuracy from k-fold cross validation using all features
         listz = (1:size(data, 2) - 2);
         initial_accuracy = leave_one_out_cross_validation(data, listz, size(data, 2));
-        disp(['Running nearest neighbor with all ', num2str(num_features), ...
+        fprintf(['Running nearest neighbor with all ', num2str(num_features), ...
               ' features, using "leave-one-out" evaluation, I get an ' ...
-              'accuracy of ', num2str(initial_accuracy * 100), '%'])
+              'accuracy of %.1f%%\n'], initial_accuracy * 100)
         
         % Display accuracy from k-fold cross validation using no features
         listz = [];
         initial_accuracy = leave_one_out_cross_validation(data, listz, -1);
-        disp(['Running nearest neighbor with 0 ', ...
+        fprintf(['Running nearest neighbor with 0 ', ...
               'features, using "leave-one-out" evaluation, I get an ' ...
-              'accuracy of ', num2str(initial_accuracy * 100), '%' 10])
+              'accuracy of %.1f%%\n'], initial_accuracy * 100)
         
         % Begin forward search
         disp(['Beginning search.' newline])
@@ -61,19 +109,19 @@ function project2
         % Display accuracy from k-fold cross validation using no features
         listz = (1);
         initial_accuracy = backward_leave_one_out_cross_validation(data, listz, 2);
-        disp(['Running nearest neighbor with 0 ', ...
+        fprintf(['Running nearest neighbor with 0 ', ...
               'features, using "leave-one-out" evaluation, I get an ' ...
-              'accuracy of ', num2str(initial_accuracy * 100), '%'])
+              'accuracy of %.1f%%\n'], initial_accuracy * 100)
 
         % Display accuracy from k-fold cross validation using all features
         listz = (1:size(data, 2) - 1);
         initial_accuracy = backward_leave_one_out_cross_validation(data, listz, 0);
-        disp(['Running nearest neighbor with all ', num2str(num_features), ...
+        fprintf(['Running nearest neighbor with all ', num2str(num_features), ...
               ' features, using "leave-one-out" evaluation, I get an ' ...
-              'accuracy of ', num2str(initial_accuracy * 100), '%' 10])
+              'accuracy of %.1f%%\n'], initial_accuracy * 100)
         
         % Begin backward elimination
-        disp(['Beginning backward search.' 10])
+        disp(['Beginning backward search.' newline])
         backward_feature_search(data);
     end
 end
@@ -155,11 +203,11 @@ function feature_search(data)
                 accuracy = leave_one_out_cross_validation(data, current_set_of_features, k + 1);
                 printList = regexprep(mat2str(current_set_of_features), {'\[', '\]', '\s+'}, {'', '', ','});
                 if isempty(current_set_of_features)
-                    disp([9 'using feature(s) {', num2str(k), printList, '}', ...
-                          ' accuracy is ', num2str(accuracy * 100), '%'])
+                    fprintf('\tusing feature(s) {%d%s} accuracy is %.1f%%\n',...
+                            k, printList, accuracy * 100)
                 else
-                    disp([9 'using feature(s) {', num2str(k), ',', printList, '}', ...
-                          ' accuracy is ', num2str(accuracy * 100), '%'])
+                    fprintf('\tusing feature(s) {%d,%s} accuracy is %.1f%%\n',...
+                            k, printList, accuracy * 100)
                 end
                 
                 % Update the best accuracy and the feature being added
@@ -173,26 +221,28 @@ function feature_search(data)
         % Store the new feature for the search
         if (best_so_far_accuracy < best_accuracy) && (warning_displayed == 0)
             warning_displayed = 1;
-            disp([10 '(Warning, Accuracy has decreased! Continuing search' ...
+            disp([newline '(Warning, Accuracy has decreased! Continuing search' ...
                    ' in case of local maxima)'])
         end
         current_set_of_features(i) = feature_to_add_at_this_level;
         printList = regexprep(mat2str(current_set_of_features), {'\[', '\]', '\s+'}, {'', '', ','});
-        disp([10 'Feature set {', printList, '}' ...
-              ' was best, accuracy is ' num2str(best_so_far_accuracy * 100), '%' 10])
+        fprintf('\nFeature set {%s} was best, accuracy is %.1f%%\n\n', ...
+                printList, best_so_far_accuracy * 100)
         
         % Update best accuracy and feature set
         if best_so_far_accuracy > best_accuracy
-                best_accuracy = best_so_far_accuracy;
-                best_set_of_features = current_set_of_features;
+            best_accuracy = best_so_far_accuracy;
+            best_set_of_features = current_set_of_features;
         end
 
     end
 
     % Output the result of the search
-    printList = regexprep(mat2str(best_set_of_features), {'\[', '\]', '\s+'}, {'', '', ','});
-    disp(['Finished search!! The best feature subset is {', ...
-          printList, '} Which had an accuracy of ', num2str(best_accuracy * 100), '%'])
+    printList = regexprep(mat2str(best_set_of_features), ...
+                         {'\[', '\]', '\s+'}, {'', '', ','});
+    fprintf(['Finished forward search!! The best feature subset is {%s} ' ...
+             'Which had an accuracy of %.1f%%\n'], ...
+              printList, best_accuracy * 100)
 end
 
 % Function to perform backward elimination
@@ -218,11 +268,11 @@ function backward_feature_search(data)
                 temp_print_features(temp_print_features == k) = [];
                 printList = regexprep(mat2str(temp_print_features), {'\[', '\]', '\s+'}, {'', '', ','});
                 if isempty(temp_print_features)
-                    disp([9 'using feature(s) { }', ...
-                          ' accuracy is ', num2str(accuracy * 100), '%'])
+                    fprintf('\tusing feature(s) { } accuracy is %.1f%%\n', ...
+                            accuracy * 100)
                 else
-                    disp([9 'using feature(s) {', printList, '}', ...
-                          ' accuracy is ', num2str(accuracy * 100), '%'])
+                    fprintf('\tusing feature(s) {%s} accuracy is %.1f%%\n', ...
+                            printList, accuracy * 100)
                 end
 
                 % Update the best accuracy and the feature being removed
@@ -235,29 +285,32 @@ function backward_feature_search(data)
         % Remove the feature for the search
         if (best_so_far_accuracy < best_accuracy) && (warning_displayed == 0)
             warning_displayed = 1;
-            disp([10 '(Warning, Accuracy has decreased! Continuing search' ...
+            disp([newline '(Warning, Accuracy has decreased! Continuing search' ...
                    ' in case of local maxima)'])
         end
         current_set_of_features(current_set_of_features == feature_to_remove_at_this_level) = [];
         printList = regexprep(mat2str(current_set_of_features), {'\[', '\]', '\s+'}, {'', '', ','});
         if isempty(current_set_of_features)
-            disp([10 'Feature set { } was best, accuracy is ' ...
-                num2str(best_so_far_accuracy * 100), '%' 10])
+            fprintf('\nFeature set { } was best, accuracy is %.1f%%\n', ...
+                    best_so_far_accuracy * 100)
         else
-        disp([10 'Feature set {', printList, '} was best, accuracy is ' ...
-            num2str(best_so_far_accuracy * 100), '%' 10])
+            fprintf('\nFeature set {%s} was best, accuracy is %.1f%%\n', ...
+                    printList, best_so_far_accuracy * 100)
         end
+
         % Update best accuracy and feature set
         if best_so_far_accuracy > best_accuracy
-                best_accuracy = best_so_far_accuracy;
-                best_set_of_features = current_set_of_features;
+            best_accuracy = best_so_far_accuracy;
+            best_set_of_features = current_set_of_features;
         end
     end
 
     % Output the result of the search
-    printList = regexprep(mat2str(best_set_of_features), {'\[', '\]', '\s+'}, {'', '', ','});
-    disp(['Finished backward search!! The best feature subset is {', ...
-          printList, '} Which had an accuracy of ', num2str(best_accuracy * 100), '%'])
+    printList = regexprep(mat2str(best_set_of_features), ...
+                         {'\[', '\]', '\s+'}, {'', '', ','});
+    fprintf(['Finished backward search!! The best feature subset is {%s} ' ...
+             'Which had an accuracy of %.1f%%\n'], ...
+              printList, best_accuracy * 100)
 end     
 
 function accuracy = backward_leave_one_out_cross_validation(data, current_set, feature_to_remove)
